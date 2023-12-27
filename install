@@ -1,0 +1,45 @@
+#!/bin/zsh
+
+source $WS_CFG_PATH/ws-shared
+
+main () {
+	local source_file="${WS_MY_PLUGIN_ROOT}/src/main.sh"
+	local bin_file="${WS_CFG_PATH}/bin/goggy"
+
+	_ws_log verbose "Checking if file already exits ..."
+	if [ -e "${WS_CFG_PATH}/bin/goggy" ]; then
+		_ws_log error "File at '${WS_CFG_PATH}/bin/goggy' already exists."
+		_ws_log warning "Please remove, and try installing again."
+		return 127
+	fi
+
+	local dependent_tools=(jq python3 7z gunzip cpio)
+	for tool in ${dependent_tools[@]}; do
+		if ! which ${tool}; then
+			_ws_log error "Missing '${tool}'. Aborting."
+			return 127
+		fi
+	done
+
+	_ws_log verbose "Linking script ..."
+	ln -s $(realpath -s ${source_file}) $(realpath -s ${bin_file})
+	ls -lav "${bin_file}"
+	if [ -e "${bin_file}" ]; then
+		chmod +x "${bin_file}"
+		_ws_log verbose "Script read at '$(ls -lav ${bin_file})' ..."
+
+		local username=$(whoami)
+		_ws_log warning "Setting up goggy directory, needs sudo"
+		sudo mkdir -p /opt/goggy/{cache,games,installed}
+		sudo chown -R ${username}:${username} /opt/goggy
+
+		ln -s "${WS_MY_PLUGIN_ROOT}/src/scripts" /opt/goggy/scripts
+
+		return 0
+	fi
+
+	_ws_log error "Could not create link!"
+	return 127
+}
+
+main $*

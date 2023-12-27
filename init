@@ -1,0 +1,28 @@
+#!/bin/bash
+
+source $WS_CFG_PATH/ws-shared
+
+main () {
+	_ws_log verbose "Checking if script is installed properly ..."
+	
+	local exit_code=0
+	if which goggy > /dev/null; then
+		goggy version 2>&1 > /dev/null
+		if [ 1 -lt $? ]; then
+			_ws_log error "Could not call 'goggy version'."
+			exit_code=127
+		fi
+
+		if [ ! -e /opt/goggy ]; then
+			_ws_log error "Could not find goggy directory at /opt/goggy"
+			exit_code=127
+		fi
+	else
+		_ws_log error "Could not find 'goggy'. Installtion of goggy seems corrupted."
+		exit_code=127
+	fi
+
+	return exit_code
+}
+
+main $*

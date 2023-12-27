@@ -1,0 +1,18 @@
+#!/bin/bash
+
+source $WS_CFG_PATH/ws-shared
+
+main () {
+	_ws_log verbose "Unlinking script ..."
+
+	if [ -e "${WS_CFG_PATH}/bin/goggy" ]; then
+		_ws_log verbose "Removing '${WS_CFG_PATH}/bin/goggy' ..."
+		rm "${WS_CFG_PATH}/bin/goggy"
+	else
+		_ws_log warning "goggy was not installed. Skipping."
+	fi
+
+	return 0
+}
+
+main $*
