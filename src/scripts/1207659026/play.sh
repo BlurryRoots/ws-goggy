@@ -1,24 +1,22 @@
 #!/bin/bash
 
+# Run script for 'Theme Hospital' (1207659026)
 play () {
 	source ${WS_CFG_PATH}/ws-shared	
-	local usage=$(cat <<-END
-		usage: $0 <command> [args]
-		commands:[
-			single,
-			client,
-			server
-		]
-	END
-	)
 
 	local gameroot="/opt/goggy/games/1207659026"
-	local internalroot="$gameroot/payload/Contents/Resources"
+	local internalroot="${gameroot}/payload/Contents/Resources"
 
 	if ! which dosbox > /dev/null; then
-		echo "Could not find dosbox :("
+		_ws_log error "Could not find dosbox :("
 		return -1
 	fi
+
+	local usage="usage: $0 <command> [args]"
+	usage="${usage}\ncommands:"
+	usage="${usage}\n\tsingle"
+	usage="${usage}\n\tclient"
+	usage="${usage}\n\tserver"
 
 	if (( 1 > $# )); then
 		_ws_log error "missing arguments"
@@ -26,11 +24,10 @@ play () {
 		return 13
 	fi
 
-	pushd "$internalroot" > /dev/null
-	#pwd
-	#ls -lav .
+	pushd "${internalroot}" > /dev/null
 
-	case $1 in
+	local cmd="${1}"
+	case ${cmd} in
 		single)
 			dosbox \
 				-conf game/dosboxTH.conf \

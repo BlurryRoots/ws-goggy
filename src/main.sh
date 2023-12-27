@@ -18,33 +18,30 @@ goggy () {
 		;;
 
 		u|uninstall)
-			echo "not implemented yet :/"
+			_ws_log error "not implemented yet :/"
 			return 13
 		;;
 
 		l|list)
 			for gameinfo in $(ls "${goggyroot}/installed"); do
 				local name=$(cat "${goggyroot}/installed/${gameinfo}" | jq .name)
-				local gameid=$(cat ${goggyroot}/installed/${gameinfo} | jq .gameId)
+				local gameid=$(cat ${goggyroot}/installed/${gameinfo} | jq .gameId | tr -dc '0-9')
 				echo "${name} (${gameid})"
 			done
 		;;
 
 		n|unpack)
-			if [ $# -lt 3 ]; then
-				echo "usage: ${self} unpack <*.pkg> <game-name>"
+			if [ $# -lt 2 ]; then
+				echo "usage: ${self} unpack [*.pkg]"
 				return 13
 			fi
 
-			local pkg="$(realpath -s $2)"
+			local pkgsrc="$2"
+			local pkg="$(realpath -s ${pkgsrc})"
 			if [ ! -e "${pkg}" ]; then
 				echo "Could not find ${pkg}!"
 				return 13
 			fi
-
-			local out=$(realpath -s "${goggyroot}/games/$3")
-			echo "Creating game path at '${out}' ..."
-			mkdir -p "${out}"
 
 			local ts=$(python3 -c "import time; print(time.time())")
 			local tmppath="/tmp/goggy/$ts"
@@ -53,18 +50,52 @@ goggy () {
 				7z x "$pkg" -o"${tmppath}" > /dev/null
 				echo "Temp Result:"
 				ls -lav .
+				
 				local datapk="package.pkg/Scripts"
-				cat "${datapk}" | gunzip -dc | cpio -i -D "${out}"
+				local rawpak="unpacked"
+				mkdir -p ${rawpak}
+				cat "${datapk}" | gunzip -dc | cpio -i -D "${rawpak}"
+
+				echo "Unpacked:"
+				ls -lav "${rawpak}"
+
+				local gameinfosrc=$(find "${rawpak}/payload/Contents" -iname "*.info" | head -n 1)
+				local gameinfoid=$(basename -s .info "${gameinfosrc/goggame-/}")
+				#gameinfoid=${gameinfoid/goggame-/}
+				echo "Found gameinfo at '${gameinfosrc}' with id ${gameinfoid}."
+
+				local out=$(realpath -s "${goggyroot}/games/${gameinfoid}")
+				if [ -e "${out}" ]; then
+					_ws_log error "Game path already present at '${out}'."
+
+					return 13
+				fi
+
+				echo "Creating game path at '${out}' ..."
+				mkdir "${out}"
+
+				echo "Copying game data ..."
+				cp -Ra "${rawpak}"/* "${out}"
+
+				local gameinfolive=$(find "${out}/payload/Contents" -iname "*.info" | head -n 1)
+				echo "Linking game info ..."
+				if ! ln -s \
+					"${gameinfolive}" \
+					"${goggyroot}/installed/${gameinfoid}.info"
+				then
+					_ws_log error "Gameinfo already present." \
+						"Seems like fragments from a previous installation." \
+						"Try removing them from '${goggyroot}' and try again."
+				fi
+				echo "Game '${gameinfoid}' ready for play."
 			popd > /dev/null
 
 			rm -rf "${tmppath}"
-
-
 		;;
 
 		d|discard)
 			echo "discarding package ..."
-			echo "not implemented yet :/"
+			_ws_log error "not implemented yet :/"
 
 			return 13
 		;;
