@@ -7,7 +7,7 @@ source "$(dirname $(realpath "${0}"))/logging.sh"
 # Define main CLI tool function.
 goggy () {
 	# .
-	local dependent_tools=(jq python3 7z gunzip cpio)
+	local dependent_tools=(awk jq python3 7z gunzip cpio)
 	local cacheroot="$(mktemp).goggy"
 	local goggyroot="/opt/goggy"
 	local goggyconfig="${HOME}/.config/goggy/setup.cfg"
@@ -591,7 +591,7 @@ goggy () {
 			usage="${usage}\n\tsetup (s)\tSets up goggy directories and config."
 			usage="${usage}\n\tpurge (p)\tRemoves goggy from the system."
 			usage="${usage}\n\tlist (l)\tLists all installed games."
-			usage="${usage}\n\tinstall (i)\Installs new game."
+			usage="${usage}\n\tinstall (i)\tInstalls new game."
 			usage="${usage}\n\tuninstall (u)\tRemoves installed game."
 			usage="${usage}\n\tplay (p)\tStarts an installed game."
 			usage="${usage}\n\tcleanup (c)\tRemoves all cached files."
