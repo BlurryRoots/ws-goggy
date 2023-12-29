@@ -1,30 +1,8 @@
 #!/bin/bash
 # (c) 2023 Sven Freiberg
 
-# Setup log level constants.
-_GOGGY_LOG_VERBOSE=3
-_GOGGY_LOG_INFO=2
-_GOGGY_LOG_WARNING=1
-_GOGGY_LOG_ERROR=0
-
-# Setup log level usage.
-_GOGGY_LOG_LVL=$_GOGGY_LOG_INFO
-# Setup log level level lookup by name.
-declare -A _GOGGY_LVLS=( ["verbose"]=$_GOGGY_LOG_VERBOSE \
-	["info"]=$_GOGGY_LOG_INFO \
-	["warning"]=$_GOGGY_LOG_WARNING \
-	["error"]=$_GOGGY_LOG_ERROR \
-)
-
-# Define logging helper function.
-_goggy_log () {
-	local lvl=${1}
-
-	local lvln=${_GOGGY_LVLS[${lvl}]}
-	if (( ${lvln} <= $_GOGGY_LOG_LVL )); then
-		echo "log(${lvl}): ${@:2}" >&2
-	fi
-}
+# Pull in logging helper.
+source "$(dirname $(realpath "${0}"))/logging.sh"
 
 # Define main CLI tool function.
 goggy () {
@@ -48,7 +26,7 @@ goggy () {
 
 	# Check if all used tools are available.
 	for tool in ${dependent_tools[@]}; do
-		if ! which ${tool}; then
+		if ! which ${tool} > /dev/null; then
 			_goggy_log error "Missing '${tool}'. Aborting."
 
 			return 13
@@ -60,15 +38,12 @@ goggy () {
 		s|setup)
 			shift
 
-			local username=$(whoami) # $(who -s | awk '{ print $1 }')
-			if [ -e "${goggyroot}" ]; then
-				_goggy_log error "Found goggy directory at '${goggyroot}'." \
-					             "Already installed?"
-
-				return 13
-			fi
-
-			while getopts d: arg; do
+			local usage="${self} ${cmd} <options>"
+			usage="${usage}\nPrepares and adds goggy to system."
+			usage="${usage}\noptions:"
+			usage="${usage}\n\t-d\tRoot directory for goggy. (default: /opt/goggy)"
+			usage="${usage}\n\t-h\tShow this help."
+			while getopts hd: arg; do
 				case ${arg} in
 					d)
 						goggyroot="${OPTARG}"
@@ -76,20 +51,36 @@ goggy () {
 						;;
 
 					:)
-					  _goggy_log error "Option -${OPTARG} requires an argument."
+						_goggy_log error "Option -${OPTARG} requires an argument."
 
-					  return 13
-					  ;;
+						return 13
+						;;
+
+					h)
+						printf "%b" "${usage}"
+
+						return 0
+						;;
 
 					\?|*)
-					  _goggy_log error "Invalid option: -${OPTARG}."
+						_goggy_log error "Invalid option: -${OPTARG}."
 
-					  return 13
-					  ;;
+						return 13
+						;;
 				esac
 			done
+			
+			# Move to remaining positional arguments (if any) and store them.
 			shift $(( OPTIND - 1 ))
 			local positionalargs=( "$@" )
+
+			local username=$(whoami) # $(who -s | awk '{ print $1 }')
+			if [ -e "${goggyroot}" ]; then
+				_goggy_log error "Found goggy directory at '${goggyroot}'." \
+					             "Already installed?"
+
+				return 13
+			fi
 
 			mkdir -p "$(dirname "${goggyconfig}")"
 			if ! [ -f "${goggyconfig}" ]; then
@@ -115,15 +106,17 @@ goggy () {
 		;;
 
 		p|purge)
-			if ! [ -e "${goggyroot}" ]; then
-				_goggy_log error "Could not find goggy root directory."
-
-				return 13
-			fi
-
-			local retainconfig=0
+			# Remove command from argument list.
 			shift
-			while getopts R arg; do
+
+			# Read options.
+			local usage="USAGE: ${self} ${cmd} <options>"
+			usage="${usage}\nRemoves goggy from system."
+			usage="${usage}\noptions:"
+			usage="${usage}\n\t-R\tRetain goggy config files."
+			usage="${usage}\n\t-h\tShow this help."
+			local retainconfig=0
+			while getopts hR arg; do
 				case ${arg} in
 					R)
 						retainconfig=1
@@ -133,18 +126,36 @@ goggy () {
 					:)
 					  _goggy_log error "Option -${OPTARG} requires an argument."
 
+					  printf "%b" "${usage}"
+
 					  return 13
 					  ;;
 
+					h)
+						printf "%b" "${usage}"
+
+						return 0
+						;;
+
 					\?|*)
 					  _goggy_log error "Invalid option: -${OPTARG}."
+
+					  printf "%b" "${usage}"
 
 					  return 13
 					  ;;
 				esac
 			done
+
+			# Move to remaining positional arguments (if any) and store them.
 			shift $(( OPTIND - 1 ))
 			local positionalargs=( "$@" )
+
+			if ! [ -e "${goggyroot}" ]; then
+				_goggy_log error "Could not find goggy root directory."
+
+				return 13
+			fi
 
 			local goggysize=$(du -sch "${goggyroot}" \
 				| tail -n 1 \
@@ -182,47 +193,105 @@ goggy () {
 		;;
 
 		l|list)
+			# Remove command from argument list.
+			shift
+
+			# Read options.
+			local usage="${self} ${cmd} <options>"
+			usage="${usage}\nLists games installed by goggy."
+			usage="${usage}\noptions:"
+			usage="${usage}\n\t-I\tShow only game ids."
+			usage="${usage}\n\t-h\tShow this help."
+			local showonlyids=0
+			while getopts hI arg; do
+				case ${arg} in
+					I)
+						showonlyids=1
+						_goggy_log verbose "Only showing game ids."
+						;;
+
+					:)
+						_goggy_log error "Option -${OPTARG} requires an argument."
+						
+						printf "%b" "${usage}"
+
+						return 13
+						;;
+
+					h)
+						printf "%b" "${usage}"
+
+						return 0
+						;;
+
+					\?|*)
+						_goggy_log error "Invalid option: -${OPTARG}."
+						
+						printf "%b" "${usage}"
+
+						return 13
+						;;
+				esac
+			done
+
+			# Move to remaining positional arguments (if any) and store them.
+			shift $(( OPTIND - 1 ))
+			local positionalargs=( "$@" )
+
 			_goggy_log verbose "Iterating linked gameinfo files ..."
 			for gameinfo in $(ls "${goggyroot}/installed"); do
 				local name=$(cat "${goggyroot}/installed/${gameinfo}" | jq .name)
 				local gameid=$(cat ${goggyroot}/installed/${gameinfo} | jq .gameId | tr -dc '0-9')
-				echo "${gameid} ${name}"
+				if [[ 1 = ${showonlyids} ]]; then
+					echo "${gameid}"
+				else
+					echo "${gameid} ${name}"
+				fi
 			done
 		;;
 
 		i|install)
-			if (( 2 > $# )); then
-				local usage="usage: ${self} ${cmd} <options> [*.pkg]"
-				usage="${usage}\noptions:"
-				usage="${usage}\n\t-R\tRetain temporary files."
-
-				printf "%b" "${usage}"
-
-				return 13
-			fi
-
-			local shouldretain=0
-
+			# Remove command from argument list.
 			shift
-			while getopts R arg; do
+
+			# Read options.
+			local usage="USAGE: ${self} ${cmd} <options> [*.pkg]"
+			usage="${usage}\nInstalls game to goggy."
+			usage="${usage}\noptions:"
+			usage="${usage}\n\t-R\tRetain temporary files."
+			usage="${usage}\n\t-h\tShow this help."
+			local shouldretain=0
+			while getopts hR arg; do
 				case ${arg} in
 					R)
 						shouldretain=1
 						;;
 
 					:)
-					  _goggy_log error "Option -${OPTARG} requires an argument."
+						_goggy_log error "Option -${OPTARG} requires an argument."
+						
+						printf "%b" "${usage}"
 
-					  return 13
-					  ;;
+						return 13
+						;;
+
+					h)
+						printf "%b" "${usage}"
+
+						return 0
+						;;
 
 					\?|*)
-					  _goggy_log error "Invalid option: -${OPTARG}."
+						_goggy_log error "Invalid option: -${OPTARG}."
+						
+						printf "%b" "${usage}"
 
-					  return 13
-					  ;;
+						return 13
+						;;
 				esac
 			done
+
+			# Move to remaining positional arguments (if any) and store them.
 			shift $(( OPTIND - 1 ))
 			local positionalargs=( "$@" )
 
@@ -314,13 +383,52 @@ goggy () {
 		;;
 
 		u|uninstall)
+			# Remove command from argument list.
 			shift
-			if ((  1 > $# )); then
-				local usage="usage: ${self} ${cmd} [gameid]"
-				printf "%b" "${usage}"
 
-				return 13
-			fi
+			# Read options.
+			local usage="USAGE: ${self} ${cmd} <options> [id]"
+			usage="${usage}\nUninstall game from goggy."
+			usage="${usage}\nid:"
+			usage="${usage}\n\tThe game id (e.g. 1207659026)."
+			usage="${usage}\noptions:"
+			usage="${usage}\n\t-R\tRetain config files."
+			usage="${usage}\n\t-h\tShow this help."
+			local retainconfig=0
+			while getopts hR arg; do
+				case ${arg} in
+					R)
+						retainconfig=1
+						_goggy_log verbose "Retaining config file."
+						;;
+
+					:)
+						_goggy_log error "Option -${OPTARG} requires an argument."
+
+						printf "%b" "${usage}"
+
+						return 13
+						;;
+
+					h)
+						printf "%b" "${usage}"
+
+						return 0
+						;;
+
+					\?|*)
+						_goggy_log error "Invalid option: -${OPTARG}."
+						
+						printf "%b" "${usage}"
+
+						return 13
+						;;
+				esac
+			done
+
+			# Move to remaining positional arguments (if any) and store them.
+			shift $(( OPTIND - 1 ))
+			local positionalargs=( "$@" )
 
 			local didremove=0
 			local gameid="${1}"
@@ -355,13 +463,51 @@ goggy () {
 		;;
 
 		p|play)
+			# Remove command from argument list.
 			shift
-			if ((  2 > $# )); then
-				local usage="usage: ${self} play [id] [mode]"
-				printf "%b" "${usage}"
 
-				return 13
-			fi
+			# Read options.
+			local usage="USAGE: ${self} ${cmd} [id] [mode]"
+			usage="${usage}\nStarts installed game in specified mode."
+			usage="${usage}\nid:"
+			usage="${usage}\n\tThe game id (e.g. 1207659026)."
+			usage="${usage}\nmode:"
+			usage="${usage}\n\tDepends on game. Use mode 'help' to list commands."
+			local retainconfig=0
+			while getopts hR arg; do
+				case ${arg} in
+					R)
+						retainconfig=1
+						_goggy_log verbose "Retaining config file."
+						;;
+
+					:)
+						_goggy_log error "Option -${OPTARG} requires an argument."
+
+						printf "%b" "${usage}"
+
+						return 13
+						;;
+
+					h)
+						printf "%b" "${usage}"
+
+						return 0
+						;;
+
+					\?|*)
+						_goggy_log error "Invalid option: -${OPTARG}."
+						
+						printf "%b" "${usage}"
+
+						return 13
+						;;
+				esac
+			done
+
+			# Move to remaining positional arguments (if any) and store them.
+			shift $(( OPTIND - 1 ))
+			local positionalargs=( "$@" )
 
 			local gameid="$1"
 			local inforoot="${goggyroot}/installed/${gameid}.info"
@@ -373,7 +519,7 @@ goggy () {
 
 			local mode="$2"
 			local gameroot="${goggyroot}/scripts/${gameid}"
-			_goggy_log info "Looking for game at '${gameroot}' ..."
+			_goggy_log verbose "Looking for game at '${gameroot}' ..."
 			if [ ! -e ${gameroot} ]; then
 				_goggy_log error "Could not find game root for id ${gameid}!"
 
@@ -383,13 +529,49 @@ goggy () {
 			local name=$(cat "${goggyroot}/installed/${gameid}.info" \
 				| jq .name \
 			)
-			echo "Playing $name ($gameid) ..."
+			_goggy_log verbose "Found $name ($gameid) ..."
 			pushd ${gameroot} > /dev/null
 				./play.sh ${mode}
 			popd > /dev/null
 		;;
 
 		c|cleanup)
+			# Remove command from argument list.
+			shift
+
+			# Read options.
+			local usage="USAGE: ${self} ${cmd}"
+			usage="${usage}\nRemoves cached files from temp directory."
+			while getopts h arg; do
+				case ${arg} in
+					:)
+						_goggy_log error "Option -${OPTARG} requires an argument."
+
+						printf "%b" "${usage}"
+
+						return 13
+						;;
+
+					h)
+						printf "%b" "${usage}"
+
+						return 0
+						;;
+
+					\?|*)
+						_goggy_log error "Invalid option: -${OPTARG}."
+						
+						printf "%b" "${usage}"
+
+						return 13
+						;;
+				esac
+			done
+
+			# Move to remaining positional arguments (if any) and store them.
+			shift $(( OPTIND - 1 ))
+			local positionalargs=( "$@" )
+
 			local tmproot="$(dirname $(mktemp))"
 			for cachedir in \
 				$(find $(dirname $(mktemp)) -iname "*.goggy" 2> /dev/null)
@@ -399,12 +581,12 @@ goggy () {
 			done
 		;;
 
-		v|version)
+		v|version|-v|--version)
 			echo "1.6.18"
 		;;
 
-		*)
-			local usage="USAGE: ${self} <options> [command] ..."
+		h|help|-h|--help)
+			local usage="USAGE: ${self} [command] ..."
 			usage="${usage}\ncommands (short-hand):"
 			usage="${usage}\n\tsetup (s)\tSets up goggy directories and config."
 			usage="${usage}\n\tpurge (p)\tRemoves goggy from the system."
@@ -414,10 +596,16 @@ goggy () {
 			usage="${usage}\n\tplay (p)\tStarts an installed game."
 			usage="${usage}\n\tcleanup (c)\tRemoves all cached files."
 			usage="${usage}\n\tversion (v)\tShows version."
+			usage="${usage}\n\thelp (h)\tShows help."
 
 			printf "%b" "${usage}"
 
 			return 13
+		;;
+
+		*)
+			_goggy_log error "Unknown command: ${cmd}"
+			${0} help
 		;;
 	esac
 
