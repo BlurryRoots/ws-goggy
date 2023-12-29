@@ -10,35 +10,30 @@ main () {
 	if [ -e "${WS_CFG_PATH}/bin/goggy" ]; then
 		_ws_log error "File at '${WS_CFG_PATH}/bin/goggy' already exists."
 		_ws_log warning "Please remove, and try installing again."
+
 		return 127
 	fi
 
-	local dependent_tools=(jq python3 7z gunzip cpio)
-	for tool in ${dependent_tools[@]}; do
-		if ! which ${tool}; then
-			_ws_log error "Missing '${tool}'. Aborting."
+	_ws_log verbose "Linking script ..."
+	local linkedbin="$(realpath -s ${bin_file})"
+	ln -s $(realpath -s ${source_file}) "${linkedbin}"
+	if [ -e "${linkedbin}" ]; then
+		chmod +x "${bin_file}"
+		_ws_log verbose "Script read at '$(ls -lav ${linkedbin})' ..."
+
+		_ws_log info "Installing goggy ..."
+		if ! "${linkedbin}" setup; then
+			_ws_log error "Install could not finish properly."
+
 			return 127
 		fi
-	done
-
-	_ws_log verbose "Linking script ..."
-	ln -s $(realpath -s ${source_file}) $(realpath -s ${bin_file})
-	ls -lav "${bin_file}"
-	if [ -e "${bin_file}" ]; then
-		chmod +x "${bin_file}"
-		_ws_log verbose "Script read at '$(ls -lav ${bin_file})' ..."
-
-		local username=$(whoami)
-		_ws_log warning "Setting up goggy directory, needs sudo"
-		sudo mkdir -p /opt/goggy/{cache,games,installed}
-		sudo chown -R ${username}:${username} /opt/goggy
-
-		ln -s "${WS_MY_PLUGIN_ROOT}/src/scripts" /opt/goggy/scripts
 
 		return 0
+	else
+		_ws_log error "No linked binary found!"
 	fi
 
-	_ws_log error "Could not create link!"
+	_ws_log error "Install failed."
 	return 127
 }
 

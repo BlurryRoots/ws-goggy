@@ -3,13 +3,21 @@
 source $WS_CFG_PATH/ws-shared
 
 main () {
+	local goggybin="${WS_CFG_PATH}/bin/goggy"
 	_ws_log verbose "Unlinking script ..."
 
-	if [ -e "${WS_CFG_PATH}/bin/goggy" ]; then
+	if [ -e "${goggybin}" ]; then
+		_ws_log info "Uninstalling goggy ..."
+		if ! "${goggybin}" purge; then
+			_ws_log error "Could not purge goggy files."
+
+			return 13
+		fi
+
 		_ws_log verbose "Removing '${WS_CFG_PATH}/bin/goggy' ..."
 		rm "${WS_CFG_PATH}/bin/goggy"
 	else
-		_ws_log warning "goggy was not installed. Skipping."
+		_ws_log warning "No goggy instance was found. Skipping."
 	fi
 
 	return 0
