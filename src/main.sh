@@ -87,7 +87,9 @@ goggy () {
 				touch "${goggyconfig}"
 				echo "root=${goggyroot}" >> "${goggyconfig}"
 			else
-				if ! sed -i -e "s/root=*/root=${goggyroot}/g" "${goggyconfig}"; then
+				local escapedpath="${goggyroot//\//\\\/}"
+				_goggy_log verbose "escapedpath: $escapedpath"
+				if ! sed -i -e "s/root=*/root=${escapedpath}/" "${goggyconfig}"; then
 					_goggy_log error "Could not update config file!"
 
 					return 13
